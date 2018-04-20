@@ -1,0 +1,68 @@
+-- This file has been generated from package.yaml by hpack version 0.20.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 8a75244c9a714b6853dd30268b81271dd70dd6acdb4fd9d8e011ac1db8b5a2a5
+
+name:           hd-tree-secp256k1
+version:        0.0.0
+synopsis:       Implementation of HD Trees for 256 bit elliptic curve keys
+description:    Bip32 (https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki)
+                Bip39 (https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
+                Bip43 (https://github.com/bitcoin/bips/blob/master/bip-0043.mediawiki)
+                Bip44 (https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
+category:       Cryptography, Key Generation
+homepage:       https://github.com/CaptJakk/hd-tree-secp256k1#readme
+bug-reports:    https://github.com/CaptJakk/hd-tree-secp256k1/issues
+author:         CaptJakk
+maintainer:     keagan.mcclelland@gmail.com
+copyright:      Keagan (CaptJakk) McClelland
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
+
+source-repository head
+  type: git
+  location: https://github.com/CaptJakk/hd-tree-secp256k1
+
+library
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -fwarn-tabs -fdefer-type-errors
+  build-depends:
+      base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
+    , basement
+    , bytestring
+    , cereal
+    , cryptonite
+    , memory
+    , secp256k1
+  exposed-modules:
+      Crypto.HDTree.Bip32
+  other-modules:
+      Paths_hd_tree_secp256k1
+  default-language: Haskell2010
+
+test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      src
+      test
+  ghc-options: -threaded -O0
+  build-depends:
+      QuickCheck
+    , base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
+    , basement
+    , bytestring
+    , cereal
+    , cryptonite
+    , hspec >=2.1.8
+    , memory
+    , safe
+    , secp256k1
+  other-modules:
+      Crypto.HDTree.Bip32
+      Paths_hd_tree_secp256k1
+  default-language: Haskell2010

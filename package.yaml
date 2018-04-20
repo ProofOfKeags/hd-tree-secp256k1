@@ -1,0 +1,47 @@
+name: hd-tree-secp256k1
+version: "0.0.0"
+category: "Cryptography, Key Generation"
+synopsis: Implementation of HD Trees for 256 bit elliptic curve keys
+description: |
+  Bip32 (https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki)
+  Bip39 (https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
+  Bip43 (https://github.com/bitcoin/bips/blob/master/bip-0043.mediawiki)
+  Bip44 (https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)
+license: MIT
+author: "CaptJakk"
+copyright: "Keagan (CaptJakk) McClelland"
+maintainer: "keagan.mcclelland@gmail.com"
+
+dependencies:
+  - base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
+  - basement
+  - bytestring
+  - cereal
+  - cryptonite
+  - memory
+  - secp256k1
+
+library:
+  source-dirs:
+    - src
+  exposed-modules:
+    - Crypto.HDTree.Bip32
+  ghc-options:
+    - -Wall
+    - -fwarn-tabs
+    - -fdefer-type-errors
+
+tests:
+  spec:
+    main: "Spec.hs"
+    ghc-options: "-threaded -O0"
+    source-dirs:
+      - src
+      - test
+
+    dependencies:
+      - hspec >= 2.1.8
+      - QuickCheck
+      - safe
+
+github: CaptJakk/hd-tree-secp256k1
