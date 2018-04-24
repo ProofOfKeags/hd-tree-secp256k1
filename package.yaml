@@ -21,6 +21,7 @@ dependencies:
   - cryptonite
   - memory
   - secp256k1
+  - trifecta
 
 library:
   source-dirs:

@@ -8,13 +8,14 @@ module Crypto.HDTree.Bip32
     , ckdPub
     , neuter
     , toAddress
-    , derivePath
+    , derivePathPub
     , ChainCode(..)
     , Index(..)
     , XPub(..)
     ) where
 
 import           Basement.Types.Word256 (Word256(..))
+import           Control.Applicative ((<|>))
 import           Control.Monad (unless)
 import           Crypto.Hash (hashWith)
 import           Crypto.Hash.Algorithms
@@ -25,15 +26,24 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Base58 as B58
+import           Data.Maybe (fromMaybe)
 import           Data.Monoid
 import           Data.Serialize
 import           Data.Serialize.Put
 import           Data.Serialize.Get
+import           Data.String (IsString(..))
 import           Data.Word (Word8, Word32)
+import           Text.Trifecta
 
 newtype ChainCode = ChainCode { getChainCode :: Word256 }
     deriving (Eq)
 newtype Index = Index { getIndex :: Word32 }
+
+instance Show Index where
+    show (Index i) =
+        if i >= 0x80000000
+            then show (i - 0x80000000) ++ "'"
+            else show i
 
 data XPub = XPub {
     xPubDepth :: Word8,
@@ -218,6 +228,25 @@ fromAddress addr =
             Right a -> Just a
 
 newtype Path = Path { unPath :: [Index] }
+
+instance Show Path where
+    show = ('m':) . ((('/':) . show) =<<) . unPath
+
+path :: Parser Path
+path = do
+    char 'm'
+    Path <$> (indexList <|> (const [] <$> eof))
+
+indexList :: Parser [Index]
+indexList = do
+    char '/'
+    idx <- index
+    offset <- option 0 $ const 0x80000000 <$> char '\''
+    rest <- indexList <|> (const [] <$> eof)
+    return $ (Index $ getIndex idx + offset):rest
+
+index :: Parser Index
+index = Index . fromIntegral <$> decimal
         
 derivePathPub :: Seed -> Path -> XPub
 derivePathPub = _

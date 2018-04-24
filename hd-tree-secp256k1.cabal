@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 31e02f3896316b8a9c14ee7191537487722fa6caed5946794891af2312028936
+-- hash: ecd39279d1073d8a931ceae963816e625c58dfc6e752dc6eb65ce8f4f7879d9e
 
 name:           hd-tree-secp256k1
 version:        0.0.0
@@ -39,6 +39,7 @@ library
     , cryptonite
     , memory
     , secp256k1
+    , trifecta
   exposed-modules:
       Crypto.HDTree.Bip32
   other-modules:
@@ -64,6 +65,7 @@ test-suite spec
     , memory
     , safe
     , secp256k1
+    , trifecta
   other-modules:
       Crypto.HDTree.Bip32
       Crypto.HDTree.Bip32Spec
