@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8a75244c9a714b6853dd30268b81271dd70dd6acdb4fd9d8e011ac1db8b5a2a5
+-- hash: 31e02f3896316b8a9c14ee7191537487722fa6caed5946794891af2312028936
 
 name:           hd-tree-secp256k1
 version:        0.0.0
@@ -32,6 +32,7 @@ library
   ghc-options: -Wall -fwarn-tabs -fdefer-type-errors
   build-depends:
       base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
+    , base58-bytestring
     , basement
     , bytestring
     , cereal
@@ -54,15 +55,17 @@ test-suite spec
   build-depends:
       QuickCheck
     , base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
+    , base58-bytestring
     , basement
     , bytestring
     , cereal
     , cryptonite
-    , hspec >=2.1.8
+    , hspec
     , memory
     , safe
     , secp256k1
   other-modules:
       Crypto.HDTree.Bip32
+      Crypto.HDTree.Bip32Spec
       Paths_hd_tree_secp256k1
   default-language: Haskell2010

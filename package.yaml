@@ -14,6 +14,7 @@ maintainer: "keagan.mcclelland@gmail.com"
 
 dependencies:
   - base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
+  - base58-bytestring
   - basement
   - bytestring
   - cereal
@@ -40,7 +41,7 @@ tests:
       - test
 
     dependencies:
-      - hspec >= 2.1.8
+      - hspec
       - QuickCheck
       - safe
 
