@@ -283,17 +283,3 @@ derivePathPub = undefined
 
 derivePathPriv :: XPriv -> Path -> Maybe (XPub, XPriv)
 derivePathPriv = undefined
-
-{-
-testPubKey = case importPubKey $ BS.pack (0x03 : (replicate 32 0xFE)) of
-    Nothing -> undefined
-    Just x -> x
-
-testXPub = XPub {
-    xPubDepth = 0xFF,
-    xPubFingerprintPar = 0xFFFFFFFF,
-    xPubChildNumber = 0xFFFFFFFF,
-    xPubChainCode = ChainCode (Word256 0xFFFFFFFFFFFFFFFF 0xFFFFFFFFFFFFFFFF  0xFFFFFFFFFFFFFFFF  0xFFFFFFFFFFFFFFFF),
-    xPubPubKey = testPubKey
-}
--}
