@@ -9,14 +9,17 @@ module Crypto.HDTree.Bip32
     , neuter
     , toAddress
     , derivePathPub
+    , deriveRootPriv
+    , deriveRootPub
     , ChainCode(..)
     , Index(..)
+    , Seed(..)
     , XPub(..)
     ) where
 
 import           Basement.Types.Word256 (Word256(..))
 import           Control.Applicative ((<|>))
-import           Control.Monad (unless)
+import           Control.Monad ((>=>), unless)
 import           Crypto.Hash (hashWith)
 import           Crypto.Hash.Algorithms
 import           Crypto.MAC.HMAC
@@ -36,7 +39,7 @@ import           Data.Word (Word8, Word32)
 import           Text.Trifecta
 
 newtype ChainCode = ChainCode { getChainCode :: Word256 }
-    deriving (Eq)
+    deriving (Eq, Show)
 newtype Index = Index { getIndex :: Word32 }
 
 instance Show Index where
@@ -61,6 +64,7 @@ data XPriv = XPriv {
     xPrivChainCode :: ChainCode,
     xPrivPrivKey :: SecKey
 }
+    deriving (Show)
 
 xpubMagicMain = 0x0488B21E
 xpubMagicTest = 0x043587CF
@@ -193,7 +197,6 @@ instance Serialize XPriv where
         putWord32be $ xPrivFingerprintPar k
         putWord32be $ xPrivChildNumber k
         put $ xPrivChainCode k
-        put '\x00'
         put $ xPrivPrivKey k
     get = do
         version <- getWord32be
@@ -209,7 +212,7 @@ instance Serialize XPriv where
 instance Show XPub where
     show = B8.unpack . encode
 
-toAddress :: XPub -> ByteString 
+toAddress :: (Serialize s) => s -> ByteString 
 toAddress xpub =
     let 
         b58 = B58.encodeBase58 B58.bitcoinAlphabet 
@@ -218,7 +221,7 @@ toAddress xpub =
     in
         b58 $ encode xpub <> checksum
 
-fromAddress :: ByteString -> Maybe XPub
+fromAddress :: (Serialize s) => ByteString -> Maybe s
 fromAddress addr =
     let
         b58 = B58.decodeBase58 B58.bitcoinAlphabet
@@ -240,19 +243,46 @@ path = do
 indexList :: Parser [Index]
 indexList = do
     char '/'
-    idx <- index
+    (Index idx) <- index
     offset <- option 0 $ const 0x80000000 <$> char '\''
     rest <- indexList <|> (const [] <$> eof)
-    return $ (Index $ getIndex idx + offset):rest
+    return $ (Index $ idx + offset):rest
 
 index :: Parser Index
 index = Index . fromIntegral <$> decimal
-        
-derivePathPub :: Seed -> Path -> XPub
-derivePathPub = _
 
-derivePathPriv :: Seed -> Path -> XPriv
-derivePathPriv = _
+deriveRootPub :: Seed -> Maybe XPub
+deriveRootPub = deriveRootPriv >=> \prv -> do
+    let (XPriv xPubDepth xPubFingerprintPar xPubChildNumber xPrivChainCode xPrivPrivKey) = prv
+        (xPubPubKey, xPubChainCode) = neuter xPrivPrivKey xPrivChainCode
+    return XPub{..}
+
+
+deriveRootPriv :: Seed -> Maybe XPriv
+deriveRootPriv (Seed seed) =
+    let
+        seedLength = BS.length seed
+        key = "Bitcoin seed" :: ByteString
+        h = hmac key $ seed :: HMAC SHA512
+        bytes = BA.convert h
+        il = BS.take 32 bytes
+        ir = BS.take 32 $ BS.drop 32 bytes
+        xPrivDepth = 0
+        xPrivFingerprintPar = 0
+        xPrivChildNumber = 0
+    in 
+        if seedLength < 16 || seedLength > 64
+            then Nothing
+            else do
+                xPrivChainCode <- ChainCode <$> parse256 ir
+                xPrivPrivKey <- secKey il
+                return XPriv{..}
+
+derivePathPub :: XPub -> Path -> Maybe XPub
+derivePathPub = undefined
+
+derivePathPriv :: XPriv -> Path -> Maybe (XPub, XPriv)
+derivePathPriv = undefined
 
 {-
 testPubKey = case importPubKey $ BS.pack (0x03 : (replicate 32 0xFE)) of
