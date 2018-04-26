@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 35b913b81da5d7e515756accd3fb2630b4e3fcdc22ad39c0f03967a07313296b
+-- hash: 9cf3af104c83e2494c097dc3e0588a0b1f0ba4b1a643ef8b341d88b402545dfa
 
 name:           hd-tree-secp256k1
 version:        0.0.0
@@ -45,6 +45,7 @@ library
   exposed-modules:
       Crypto.HDTree.Bip32
   other-modules:
+      Crypto.HDTree.Constants
       Paths_hd_tree_secp256k1
   default-language: Haskell2010
 
@@ -72,6 +73,7 @@ test-suite spec
     , trifecta
   other-modules:
       Crypto.HDTree.Bip32
+      Crypto.HDTree.Constants
       Crypto.HDTree.Bip32Spec
       Paths_hd_tree_secp256k1
   default-language: Haskell2010

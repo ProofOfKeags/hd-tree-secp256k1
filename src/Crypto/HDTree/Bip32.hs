@@ -22,13 +22,12 @@ module Crypto.HDTree.Bip32
     , Index(..)
     , Path(..)
     , Seed(..)
-    , XPub(..)
     ) where
 
 import           Basement.Types.Word256 (Word256(..))
 import           Control.Applicative ((<|>))
 import           Control.Lens hiding (Index, index, indices)
-import           Control.Monad ((>=>), unless)
+import           Control.Monad (unless)
 import           Crypto.Hash (hashWith, Digest)
 import           Crypto.Hash.Algorithms
 import           Crypto.MAC.HMAC
@@ -43,8 +42,9 @@ import           Data.Either (fromRight)
 import           Data.Monoid
 import           Data.Serialize
 import           Data.Word (Word8, Word32)
-import           Text.Trifecta
-import           Text.Trifecta.Result
+import           Text.Trifecta hiding (err)
+
+import Crypto.HDTree.Constants
 
 newtype PublicKey = PublicKey { pubKey :: SECP.PubKey }
 newtype PrivateKey = PrivateKey { privKey :: SECP.SecKey }
@@ -100,38 +100,6 @@ instance MagicMain PrivateKey where
 
 instance MagicMain a => MagicMain (Extended a) where
     magicMain = magicMain . _extKey
-
-{-
-data XPub = XPub {
-    xPubDepth :: Word8,
-    xPubFingerprintPar :: Word32,
-    xPubChildNumber :: Word32,
-    xPubChainCode :: ChainCode,
-    xPubPubKey :: PubKey
-}
-    deriving (Eq)
-
-data XPriv = XPriv {
-    xPrivDepth :: Word8,
-    xPrivFingerprintPar :: Word32,
-    xPrivChildNumber :: Word32,
-    xPrivChainCode :: ChainCode,
-    xPrivPrivKey :: SecKey
-}
-    deriving (Eq)
--}
-
-xpubMagicMain :: Word32
-xpubMagicMain = 0x0488B21E
-
-xpubMagicTest :: Word32
-xpubMagicTest = 0x043587CF
-
-xprivMagicMain :: Word32
-xprivMagicMain = 0x0488ADE4
-
-xprivMagicTest :: Word32
-xprivMagicTest = 0x04358394
 
 -- serializes 32 bit unsigned integer to big endian represented 4 byte bytestring
 ser32 :: Word32 -> ByteString
@@ -247,7 +215,7 @@ instance (MagicMain a, Serialize a) => Serialize (Extended a) where
         put $ k ^. extKey
     get = do
         version <- getWord32be
-        unless (version == xpubMagicMain || version == xpubMagicTest)
+        unless (version == xpubMagicMain || version == xprivMagicMain)
             (fail "get: wrong version bytes")
         _extDepth <- getWord8
         _extParentFingerprint <- getWord32be
@@ -255,26 +223,6 @@ instance (MagicMain a, Serialize a) => Serialize (Extended a) where
         _extChainCode <- get
         _extKey <- get
         return $ Extended{..}
-{-
-instance Serialize XPriv where
-    put k = do
-        putWord32be xprivMagicMain
-        putWord8 $ k ^.
-        putWord32be $ xPrivFingerprintPar k
-        putWord32be $ xPrivChildNumber k
-        put $ xPrivChainCode k
-        put $ xPrivPrivKey k
-    get = do
-        version <- getWord32be
-        unless (version == xprivMagicMain || version == xprivMagicTest)
-            (fail "get: wrong version bytes")
-        xPrivDepth <- getWord8
-        xPrivFingerprintPar <- getWord32be
-        xPrivChildNumber <- getWord32be
-        xPrivChainCode <- get
-        xPrivPrivKey <- get
-        return Extended{..}
--}
 
 instance Show XPub where
     show = B8.unpack . encode
@@ -297,12 +245,10 @@ fromAddress addr =
             Left _ -> Nothing
             Right a -> Just a
 
-data Path = Path { public :: Bool, indices :: [Index] }
+newtype Path = Path { privPath :: [Index] }
 
 instance Show Path where
-    show p = 
-        let c = if public p then 'M' else 'm'
-        in (c:) . ((('/':) . show) =<<) . indices $ p
+    show = ('m':) . ((('/':) . show) =<<) . privPath
 
 parsePath :: String -> Maybe Path
 parsePath s = case parseString path mempty s of
@@ -311,16 +257,13 @@ parsePath s = case parseString path mempty s of
 
 path :: Parser Path
 path = do
-    c <- char 'm' <|> char 'M'
-    let public = if c == 'm'
-        then False
-        else True
-    indices <- (indexList <|> (const [] <$> eof))
+    _ <- char 'm'
+    privPath <- (indexList <|> (const [] <$> eof))
     return Path{..}
 
 indexList :: Parser [Index]
 indexList = do
-    char '/'
+    _ <- char '/'
     (Index idx) <- index
     offset <- option 0 $ const 0x80000000 <$> char '\''
     rest <- indexList <|> (const [] <$> eof)
@@ -360,9 +303,8 @@ fingerprint = fromRight err . decode . BS.take 4 . BA.convert . hash160 . encode
     where err = error "unreachable"
 
 derivePathPub :: XPub -> Path -> Maybe XPub
-derivePathPub xp (Path False _) = Nothing
-derivePathPub xp (Path _ []) = Just xp
-derivePathPub xp (Path _ (i:is)) = if isHardened i
+derivePathPub xp (Path []) = Just xp
+derivePathPub xp (Path (i:is)) = if isHardened i
     then Nothing
     else 
         let 
@@ -372,11 +314,11 @@ derivePathPub xp (Path _ (i:is)) = if isHardened i
         in do
             (k, c) <- ckdPub (xp ^. extKey) (xp ^. extChainCode) i
             let xp' = incDepth . setParentFingerprint . setChildNumber . set extKey k . set extChainCode c $ xp
-            derivePathPub xp' (Path True is)
+            derivePathPub xp' (Path is)
 
 derivePathPriv :: XPriv -> Path -> Maybe XPriv
-derivePathPriv xp (Path _ []) = Just xp
-derivePathPriv xp (Path p (i:is)) =
+derivePathPriv xp (Path []) = Just xp
+derivePathPriv xp (Path (i:is)) =
     let
         incDepth = extDepth %~ (+1)
         setParentFingerprint = extParentFingerprint .~ fingerprint (derivePublicKey $ xp ^. extKey)
@@ -384,4 +326,4 @@ derivePathPriv xp (Path p (i:is)) =
     in do
         (k, c) <- ckdPriv (xp ^. extKey) (xp ^. extChainCode) i
         let xp' = incDepth . setParentFingerprint . setChildNumber . set extKey k . set extChainCode c $ xp
-        derivePathPriv xp' (Path p is)
+        derivePathPriv xp' (Path is)
