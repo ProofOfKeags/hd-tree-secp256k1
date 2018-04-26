@@ -1,6 +1,10 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Crypto.HDTree.Bip32 
     ( ckdDiagHardened
     , ckdDiagStandard
@@ -8,35 +12,61 @@ module Crypto.HDTree.Bip32
     , ckdPub
     , neuter
     , toAddress
+    , fromAddress
+    , derivePathPriv
     , derivePathPub
     , deriveRootPriv
     , deriveRootPub
+    , parsePath
     , ChainCode(..)
     , Index(..)
+    , Path(..)
     , Seed(..)
     , XPub(..)
     ) where
 
 import           Basement.Types.Word256 (Word256(..))
 import           Control.Applicative ((<|>))
+import           Control.Lens hiding (Index, index, indices)
 import           Control.Monad ((>=>), unless)
-import           Crypto.Hash (hashWith)
+import           Crypto.Hash (hashWith, Digest)
 import           Crypto.Hash.Algorithms
 import           Crypto.MAC.HMAC
-import           Crypto.Secp256k1
+import qualified Crypto.Secp256k1 as SECP
+import           Crypto.Secp256k1 (Tweak, tweak)
 import qualified Data.ByteArray as BA
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Base58 as B58
-import           Data.Maybe (fromMaybe)
+import           Data.Either (fromRight)
 import           Data.Monoid
 import           Data.Serialize
-import           Data.Serialize.Put
-import           Data.Serialize.Get
-import           Data.String (IsString(..))
 import           Data.Word (Word8, Word32)
 import           Text.Trifecta
+import           Text.Trifecta.Result
+
+newtype PublicKey = PublicKey { pubKey :: SECP.PubKey }
+newtype PrivateKey = PrivateKey { privKey :: SECP.SecKey }
+
+getPrivKey :: PrivateKey -> ByteString
+getPrivKey = SECP.getSecKey . privKey
+
+derivePublicKey :: PrivateKey -> PublicKey
+derivePublicKey = PublicKey . SECP.derivePubKey . privKey
+
+tweakAddPrivateKey :: PrivateKey -> Tweak -> Maybe PrivateKey
+tweakAddPrivateKey p t = fmap PrivateKey . SECP.tweakAddSecKey (privKey p) $ t
+
+mkPubKey :: ByteString -> Maybe PublicKey
+mkPubKey = fmap PublicKey . SECP.importPubKey
+
+mkPrivKey :: ByteString -> Maybe PrivateKey
+mkPrivKey = fmap PrivateKey . SECP.secKey
+
+addPublicKeys :: PublicKey -> PublicKey -> Maybe PublicKey
+addPublicKeys a b = PublicKey <$> SECP.combinePubKeys [pubKey a, pubKey b]
+
 
 newtype ChainCode = ChainCode { getChainCode :: Word256 }
     deriving (Eq, Show)
@@ -48,6 +78,30 @@ instance Show Index where
             then show (i - 0x80000000) ++ "'"
             else show i
 
+type XPub = Extended PublicKey
+type XPriv = Extended PrivateKey
+data Extended a = Extended
+    { _extDepth :: Word8
+    , _extParentFingerprint :: Word32
+    , _extChildNumber :: Word32
+    , _extChainCode :: ChainCode
+    , _extKey :: a
+    }
+makeLenses ''Extended
+
+class MagicMain a where
+    magicMain :: a -> Word32
+
+instance MagicMain PublicKey where
+    magicMain _ = xpubMagicMain
+
+instance MagicMain PrivateKey where
+    magicMain _ = xprivMagicMain
+
+instance MagicMain a => MagicMain (Extended a) where
+    magicMain = magicMain . _extKey
+
+{-
 data XPub = XPub {
     xPubDepth :: Word8,
     xPubFingerprintPar :: Word32,
@@ -55,7 +109,7 @@ data XPub = XPub {
     xPubChainCode :: ChainCode,
     xPubPubKey :: PubKey
 }
-        deriving (Eq)
+    deriving (Eq)
 
 data XPriv = XPriv {
     xPrivDepth :: Word8,
@@ -64,24 +118,34 @@ data XPriv = XPriv {
     xPrivChainCode :: ChainCode,
     xPrivPrivKey :: SecKey
 }
-    deriving (Show)
+    deriving (Eq)
+-}
 
+xpubMagicMain :: Word32
 xpubMagicMain = 0x0488B21E
+
+xpubMagicTest :: Word32
 xpubMagicTest = 0x043587CF
+
+xprivMagicMain :: Word32
 xprivMagicMain = 0x0488ADE4
+
+xprivMagicTest :: Word32
 xprivMagicTest = 0x04358394
 
-
+-- serializes 32 bit unsigned integer to big endian represented 4 byte bytestring
 ser32 :: Word32 -> ByteString
 ser32 = runPut . putWord32be
 
+-- serializes 256 bit unsigned integer to big endian represented 32 byte bytestring
 ser256 :: Word256 -> ByteString
 ser256 (Word256 a b c d) = runPut . mconcat . fmap putWord64be $ [a, b, c, d]
 
-serP :: PubKey -> ByteString
-serP = exportPubKey True
+-- serializes public key to 33 byte bytestring
+serP :: PublicKey -> ByteString
+serP = SECP.exportPubKey True . pubKey
 
--- parses 256 bit bytestring into a 256 bit integer
+-- parses 256 bit bytestring into a 256 bit unsigned integer
 parse256 :: ByteString -> Maybe Word256
 parse256 bs =
     let g = (,) 
@@ -97,51 +161,53 @@ parse256 bs =
                 then Just result 
                 else Nothing
 
+isHardened :: Index -> Bool
+isHardened = (>= 0x80000000) . getIndex
+
 -- ckdPriv spec: https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#private-parent-key--private-child-key
-ckdPriv :: SecKey -> ChainCode -> Index -> Maybe (SecKey, ChainCode)
+ckdPriv :: PrivateKey -> ChainCode -> Index -> Maybe (PrivateKey, ChainCode)
 ckdPriv sPar cPar idx
     | getIndex idx >= 0x80000000 = go hardened
     | otherwise                  = go standard
     where
-        hardened = hmac (ser256 $ getChainCode cPar) ("\x00" <> getSecKey sPar <> ser32 (getIndex idx))
-        standard = hmac (ser256 $ getChainCode cPar) (serP (derivePubKey sPar) <> ser32 (getIndex idx))
-        go :: HMAC SHA512 -> Maybe (SecKey, ChainCode)
+        hardened = hmac (ser256 $ getChainCode cPar) ("\x00" <> getPrivKey sPar <> ser32 (getIndex idx))
+        standard = hmac (ser256 $ getChainCode cPar) (serP (derivePublicKey sPar) <> ser32 (getIndex idx))
+        go :: HMAC SHA512 -> Maybe (PrivateKey, ChainCode)
         go hash = do
             let i = BA.convert $ hmacGetDigest hash
                 il = BS.take 32 i
                 ir = BS.take 32 . BS.drop 32 $ i
-            si <- tweak il >>= tweakAddSecKey sPar
+            si <- tweak il >>= tweakAddPrivateKey sPar
             ci <- ChainCode <$> parse256 ir
             return (si, ci)
 
 -- ckdPub spec: https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#public-parent-key--public-child-key
-ckdPub :: PubKey -> ChainCode -> Index -> Maybe (PubKey, ChainCode)
+ckdPub :: PublicKey -> ChainCode -> Index -> Maybe (PublicKey, ChainCode)
 ckdPub kPar cPar idx
     | getIndex idx >= 0x80000000 = Nothing
     | otherwise                  = go standard
     where
         standard = hmac (ser256 $ getChainCode cPar) (serP kPar <> ser32 (getIndex idx))
-        go :: HMAC SHA512 -> Maybe (PubKey, ChainCode)
+        go :: HMAC SHA512 -> Maybe (PublicKey, ChainCode)
         go hash = do
             let i = BA.convert $ hmacGetDigest hash
                 il = BS.take 32 i
                 ir = BS.take 32 . BS.drop 32 $ i
-            kToAdd <- derivePubKey <$> secKey il
-            ki <- combinePubKeys [kPar, kToAdd]
+            kToAdd <- derivePublicKey <$> mkPrivKey il
+            ki <- addPublicKeys kPar kToAdd
             ci <- ChainCode <$> parse256 ir
             return (ki, ci)
 
+neuter :: XPriv -> XPub
+neuter = over extKey derivePublicKey
 
-neuter :: SecKey -> ChainCode -> (PubKey, ChainCode)
-neuter sPar cPar = (derivePubKey sPar, cPar)
-
-ckdDiagStandard :: SecKey -> ChainCode -> Index -> Maybe (PubKey, ChainCode)
+ckdDiagStandard :: PrivateKey -> ChainCode -> Index -> Maybe (PublicKey, ChainCode)
 ckdDiagStandard sPar cPar idx = if getIndex idx >= 0x80000000
     then Nothing
-    else uncurry ckdPub (neuter sPar cPar) idx
+    else ckdPub (derivePublicKey sPar) cPar idx
 
-ckdDiagHardened :: SecKey -> ChainCode -> Index -> Maybe (PubKey, ChainCode)
-ckdDiagHardened sPar cPar = fmap (uncurry neuter) . ckdPriv sPar cPar
+ckdDiagHardened :: PrivateKey -> ChainCode -> Index -> Maybe (PublicKey, ChainCode)
+ckdDiagHardened sPar cPar = fmap (_1 %~ derivePublicKey) . ckdPriv sPar cPar
 
 newtype Seed = Seed { getSeed :: ByteString }
 
@@ -155,45 +221,45 @@ instance Serialize ChainCode where
             <*> getWord64be
         return $ ChainCode n
 
-instance Serialize PubKey where
+instance Serialize PublicKey where
     put = putByteString . serP
     get = do
         bytes <- getBytes 33
-        case importPubKey bytes of
+        case mkPubKey bytes of
             Nothing -> fail "get: pub key import failed"
             Just x -> return x
 
-instance Serialize SecKey where
-    put = putByteString . ("\x00"<>) . getSecKey
+instance Serialize PrivateKey where
+    put = putByteString . ("\x00"<>) . getPrivKey
     get = do
         bytes <- getBytes 33
-        case secKey $ BS.drop 1 bytes of
+        case mkPrivKey $ BS.drop 1 bytes of
             Nothing -> fail "get: priv key import failed"
             Just x -> return x
 
-instance Serialize XPub where
+instance (MagicMain a, Serialize a) => Serialize (Extended a) where
     put k = do
-        putWord32be xpubMagicMain
-        putWord8 $ xPubDepth k
-        putWord32be $ xPubFingerprintPar k
-        putWord32be $ xPubChildNumber k
-        put $ xPubChainCode k
-        put $ xPubPubKey k
+        putWord32be $ magicMain k
+        putWord8 $ k ^. extDepth
+        putWord32be $ k ^. extParentFingerprint
+        putWord32be $ k ^. extChildNumber
+        put $ k ^. extChainCode
+        put $ k ^. extKey
     get = do
         version <- getWord32be
         unless (version == xpubMagicMain || version == xpubMagicTest)
             (fail "get: wrong version bytes")
-        xPubDepth <- getWord8
-        xPubFingerprintPar <- getWord32be
-        xPubChildNumber <- getWord32be
-        xPubChainCode <- get
-        xPubPubKey <- get
-        return XPub{..}
-
+        _extDepth <- getWord8
+        _extParentFingerprint <- getWord32be
+        _extChildNumber <- getWord32be
+        _extChainCode <- get
+        _extKey <- get
+        return $ Extended{..}
+{-
 instance Serialize XPriv where
     put k = do
         putWord32be xprivMagicMain
-        putWord8 $ xPrivDepth k
+        putWord8 $ k ^.
         putWord32be $ xPrivFingerprintPar k
         putWord32be $ xPrivChildNumber k
         put $ xPrivChainCode k
@@ -207,7 +273,8 @@ instance Serialize XPriv where
         xPrivChildNumber <- getWord32be
         xPrivChainCode <- get
         xPrivPrivKey <- get
-        return XPriv{..}
+        return Extended{..}
+-}
 
 instance Show XPub where
     show = B8.unpack . encode
@@ -227,18 +294,29 @@ fromAddress addr =
         b58 = B58.decodeBase58 B58.bitcoinAlphabet
     in
         b58 addr >>= \x -> case decode . BS.take 78 $ x of
-            Left e -> Nothing
+            Left _ -> Nothing
             Right a -> Just a
 
-newtype Path = Path { unPath :: [Index] }
+data Path = Path { public :: Bool, indices :: [Index] }
 
 instance Show Path where
-    show = ('m':) . ((('/':) . show) =<<) . unPath
+    show p = 
+        let c = if public p then 'M' else 'm'
+        in (c:) . ((('/':) . show) =<<) . indices $ p
+
+parsePath :: String -> Maybe Path
+parsePath s = case parseString path mempty s of
+    Success a -> Just a
+    _ -> Nothing
 
 path :: Parser Path
 path = do
-    char 'm'
-    Path <$> (indexList <|> (const [] <$> eof))
+    c <- char 'm' <|> char 'M'
+    let public = if c == 'm'
+        then False
+        else True
+    indices <- (indexList <|> (const [] <$> eof))
+    return Path{..}
 
 indexList :: Parser [Index]
 indexList = do
@@ -252,11 +330,7 @@ index :: Parser Index
 index = Index . fromIntegral <$> decimal
 
 deriveRootPub :: Seed -> Maybe XPub
-deriveRootPub = deriveRootPriv >=> \prv -> do
-    let (XPriv xPubDepth xPubFingerprintPar xPubChildNumber xPrivChainCode xPrivPrivKey) = prv
-        (xPubPubKey, xPubChainCode) = neuter xPrivPrivKey xPrivChainCode
-    return XPub{..}
-
+deriveRootPub = fmap (extKey %~ derivePublicKey) . deriveRootPriv 
 
 deriveRootPriv :: Seed -> Maybe XPriv
 deriveRootPriv (Seed seed) =
@@ -267,19 +341,47 @@ deriveRootPriv (Seed seed) =
         bytes = BA.convert h
         il = BS.take 32 bytes
         ir = BS.take 32 $ BS.drop 32 bytes
-        xPrivDepth = 0
-        xPrivFingerprintPar = 0
-        xPrivChildNumber = 0
+        _extDepth = 0
+        _extParentFingerprint = 0
+        _extChildNumber = 0
     in 
         if seedLength < 16 || seedLength > 64
             then Nothing
             else do
-                xPrivChainCode <- ChainCode <$> parse256 ir
-                xPrivPrivKey <- secKey il
-                return XPriv{..}
+                _extChainCode <- ChainCode <$> parse256 ir
+                _extKey <- mkPrivKey il
+                return Extended{..}
+
+hash160 :: ByteString -> Digest RIPEMD160
+hash160 = hashWith RIPEMD160 . (BA.convert :: Digest SHA256 -> ByteString) . hashWith SHA256
+
+fingerprint :: PublicKey -> Word32
+fingerprint = fromRight err . decode . BS.take 4 . BA.convert . hash160 . encode 
+    where err = error "unreachable"
 
 derivePathPub :: XPub -> Path -> Maybe XPub
-derivePathPub = undefined
+derivePathPub xp (Path False _) = Nothing
+derivePathPub xp (Path _ []) = Just xp
+derivePathPub xp (Path _ (i:is)) = if isHardened i
+    then Nothing
+    else 
+        let 
+            incDepth = extDepth %~ (+1)
+            setParentFingerprint = extParentFingerprint .~ fingerprint (xp ^. extKey)
+            setChildNumber = extChildNumber .~ getIndex i
+        in do
+            (k, c) <- ckdPub (xp ^. extKey) (xp ^. extChainCode) i
+            let xp' = incDepth . setParentFingerprint . setChildNumber . set extKey k . set extChainCode c $ xp
+            derivePathPub xp' (Path True is)
 
-derivePathPriv :: XPriv -> Path -> Maybe (XPub, XPriv)
-derivePathPriv = undefined
+derivePathPriv :: XPriv -> Path -> Maybe XPriv
+derivePathPriv xp (Path _ []) = Just xp
+derivePathPriv xp (Path p (i:is)) =
+    let
+        incDepth = extDepth %~ (+1)
+        setParentFingerprint = extParentFingerprint .~ fingerprint (derivePublicKey $ xp ^. extKey)
+        setChildNumber = extChildNumber .~ getIndex i
+    in do
+        (k, c) <- ckdPriv (xp ^. extKey) (xp ^. extChainCode) i
+        let xp' = incDepth . setParentFingerprint . setChildNumber . set extKey k . set extChainCode c $ xp
+        derivePathPriv xp' (Path p is)

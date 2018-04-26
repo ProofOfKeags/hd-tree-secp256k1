@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0a4aaa500dcb7f194339fc6cb480722fa27fcf591b1ead56e18481ba86b5d7b4
+-- hash: 35b913b81da5d7e515756accd3fb2630b4e3fcdc22ad39c0f03967a07313296b
 
 name:           hd-tree-secp256k1
 version:        0.0.0
@@ -38,6 +38,7 @@ library
     , bytestring
     , cereal
     , cryptonite
+    , lens
     , memory
     , secp256k1
     , trifecta
@@ -64,6 +65,7 @@ test-suite spec
     , cereal
     , cryptonite
     , hspec
+    , lens
     , memory
     , safe
     , secp256k1

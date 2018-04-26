@@ -20,6 +20,7 @@ dependencies:
   - bytestring
   - cereal
   - cryptonite
+  - lens
   - memory
   - secp256k1
   - trifecta
