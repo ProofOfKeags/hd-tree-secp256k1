@@ -12,17 +12,23 @@ import qualified Data.ByteString as BS
 import           Data.Monoid ((<>))
 import           Data.Serialize
 import           Data.Word (Word8, Word32)
+import qualified Data.ByteString.Base16 as B16
+import qualified Data.ByteString.Char8 as B8
 
 import Crypto.HDTree.Bip32.Constants
 
 newtype Seed = Seed { getSeed :: ByteString }
-newtype PublicKey = PublicKey { pubKey :: SECP.PubKey }
-newtype PrivateKey = PrivateKey { privKey :: SECP.SecKey }
+newtype PublicKey = PublicKey { pubKey :: SECP.PubKey } deriving (Eq, Show)
+newtype PrivateKey = PrivateKey { privKey :: SECP.SecKey } deriving (Eq, Show)
 
 getXCoord :: PublicKey -> ByteString
-getXCoord = BS.take 32 . BS.drop 1 . SECP.exportPubKey False . pubKey
+getXCoord = BS.take 32 . BS.drop 1 . getUncompressed
 getYCoord :: PublicKey -> ByteString
-getYCoord = BS.drop 33 . SECP.exportPubKey False . pubKey
+getYCoord = BS.drop 33 . getUncompressed
+getUncompressed :: PublicKey -> ByteString
+getUncompressed = SECP.exportPubKey False . pubKey
+getCompressed :: PublicKey -> ByteString
+getCompressed = SECP.exportPubKey True . pubKey
 
 newtype ChainCode = ChainCode { getChainCode :: Word256 }
     deriving (Eq, Show)
@@ -34,6 +40,7 @@ data Extended a = Extended
     , _extChainCode :: ChainCode
     , _extKey :: a
     }
+    deriving (Show)
 makeLenses ''Extended
 
 type XPub = Extended PublicKey
@@ -134,7 +141,7 @@ instance (MagicMain a, Serialize a) => Serialize (Extended a) where
     get = do
         version <- getWord32be
         unless (version == xpubMagicMain || version == xprivMagicMain)
-            (fail "get: wrong version bytes")
+            (fail $ "get: wrong version bytes: " <> B8.unpack (B16.encode (encode version)))
         _extDepth <- getWord8
         _extParentFingerprint <- getWord32be
         _extChildNumber <- getWord32be

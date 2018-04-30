@@ -17,8 +17,12 @@ module Crypto.HDTree.Bip32
     , derivePathPub
     , deriveRootPriv
     , deriveRootPub
+    , getCompressed
+    , getUncompressed
     , getXCoord
     , getYCoord
+    , hash160
+    , hash256
     , parsePath
     , ChainCode(..)
     , Index(..)
@@ -99,8 +103,7 @@ toXAddress :: (MagicMain s, Serialize s) => Extended s -> ByteString
 toXAddress xpub =
     let 
         b58 = B58.encodeBase58 B58.bitcoinAlphabet 
-        sha256 = hashWith SHA256
-        checksum = BS.take 4 . BA.convert . sha256 . BA.convert . sha256 $ encode xpub
+        checksum = BS.take 4 . BA.convert . hash256 $ encode xpub
     in
         b58 $ encode xpub <> checksum
 
@@ -164,7 +167,10 @@ derivePathPriv xp (Path (i:is)) =
         derivePathPriv xp' (Path is)
 
 hash160 :: ByteString -> Digest RIPEMD160
-hash160 = hashWith RIPEMD160 . (BA.convert :: Digest SHA256 -> ByteString) . hashWith SHA256
+hash160 = hashWith RIPEMD160 . hashWith SHA256
+
+hash256 :: ByteString -> Digest SHA256
+hash256 = hashWith SHA256 . hashWith SHA256
 
 fingerprint :: PublicKey -> Word32
 fingerprint = fromRight err . decode . BS.take 4 . BA.convert . hash160 . encode 
