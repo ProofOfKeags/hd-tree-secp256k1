@@ -58,6 +58,6 @@ testOne seed (dp, priv, pub) = do
                 root <- deriveRootPriv seed
                 let xpriv = derivePathPriv root path
                 let xpub = neuter <$> xpriv
-                liftA2 (,) (toAddress <$> xpriv) (toAddress <$> xpub)
+                liftA2 (,) (toXAddress <$> xpriv) (toXAddress <$> xpub)
         it ("xpriv should be " ++ show priv) $ fst <$> keys `shouldBe` Just priv
         it ("xpub should be " ++ show pub) $ snd <$> keys `shouldBe` Just pub

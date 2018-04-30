@@ -1,4 +1,4 @@
-module Crypto.HDTree.Constants
+module Crypto.HDTree.Bip32.Constants
     ( xprivMagicMain
     , xpubMagicMain
     , xprivMagicTest

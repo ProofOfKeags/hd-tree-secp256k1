@@ -13,6 +13,7 @@ copyright: "Keagan (CaptJakk) McClelland"
 maintainer: "keagan.mcclelland@gmail.com"
 
 dependencies:
+  - asn1-data
   - base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
   - base16-bytestring
   - base58-bytestring
