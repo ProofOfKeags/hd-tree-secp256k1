@@ -25,6 +25,7 @@ module Crypto.HDTree.Bip32
     , hash256
     , parsePath
     , ChainCode(..)
+    , Extended(..)
     , Index(..)
     , Path(..)
     , PrivateKey(..)
