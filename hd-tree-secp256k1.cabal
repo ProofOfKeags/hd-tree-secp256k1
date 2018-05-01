@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 11ea7e5887c9a5d2d75d866f99906f13dd3865f2cb88f7ee47f436cc85fae6da
+-- hash: d8c8c5280631a9894cb636dc05d4892177782ecc1fe652e2ced657f911fc339a
 
 name:           hd-tree-secp256k1
 version:        0.0.0
@@ -31,8 +31,7 @@ library
       src
   ghc-options: -Wall -fwarn-tabs -fdefer-typed-holes
   build-depends:
-      asn1-data
-    , base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
+      base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
     , base16-bytestring
     , base58-bytestring
     , basement
@@ -45,8 +44,8 @@ library
     , trifecta
   exposed-modules:
       Crypto.HDTree.Bip32
-  other-modules:
       Crypto.HDTree.Address
+  other-modules:
       Crypto.HDTree.Bip32.Constants
       Crypto.HDTree.Bip32.DerivationPath
       Crypto.HDTree.Bip32.ExtendedKeys
@@ -62,7 +61,6 @@ test-suite spec
   ghc-options: -threaded -O0
   build-depends:
       QuickCheck
-    , asn1-data
     , base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
     , base16-bytestring
     , base58-bytestring
