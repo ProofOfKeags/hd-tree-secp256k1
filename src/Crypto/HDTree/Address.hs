@@ -11,7 +11,10 @@ import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Base58 as B58
 import qualified Data.ByteArray as BA
 import Data.Char
+import Data.List
 import Data.Monoid
+import Data.Serialize
+import Data.Word
 
 newtype EthAddr = EthAddr { unEthAddr :: ByteString } deriving (Eq, Show)
 newtype BtcAddr = BtcAddr { unBtcAddr :: ByteString } deriving (Eq, Show)
@@ -43,12 +46,42 @@ verifyEthChecksum = ethChecksum >>= (==)
 getLowerEthAddress :: PublicKey -> EthAddr
 getLowerEthAddress p = EthAddr . B16.encode . BS.drop 12 . BA.convert . hashWith Keccak_256 $ getXCoord p <> getYCoord p
 
-getBtcAddress :: PublicKey -> BtcAddr
-getBtcAddress p = BtcAddr . b58encode $ "\x00" <> payload <> checksum
+getBtcP2PKHAddress :: NetworkType -> PublicKey -> BtcAddr
+getBtcP2PKHAddress t p = base58check v . hash160 . getCompressed $ p
     where
-        payload = BA.convert . hash160 . getCompressed $ p
-        checksum = BS.take 4 . BA.convert . hash256 $ "\x00" <> payload
-        b58encode = B58.encodeBase58 B58.bitcoinAlphabet
+        v = if t == MainNet then 0x00 else 0x6F
+
+data MultiSigErr = TooManyKeys
+                 | MExceedsN
+    deriving (Show)
+
+data NetworkType = MainNet
+                 | TestNet
+    deriving (Eq)
+
+-- will only take up to 15 pub keys, 
+getBtcMultiSigAddressMain :: NetworkType -> [PublicKey] -> Word8 -> Either MultiSigErr BtcAddr
+getBtcMultiSigAddressMain t ps m = base58check v . hash160 <$> getBtcMultiSigScript ps m
+    where v = if t == MainNet then 0x05 else 0xC4
+
+getBtcMultiSigScript :: [PublicKey] -> Word8 -> Either MultiSigErr ByteString
+getBtcMultiSigScript ps m
+    | length ps > 15 = Left TooManyKeys
+    | fromIntegral m > length ps = Left MExceedsN
+    | otherwise = Right $ script
+    where
+        op_m = encode $ (0x50 + (m .&. 0xF) :: Word8)
+        op_n = encode $ (0x50 + (fromIntegral (length ps) .&. 0xF) :: Word8)
+        op_checkmultisig = encode (0xAE :: Word8)
+        sorted = sort . fmap getCompressed $ ps
+        pubkeyPushes = mconcat . fmap ("\x4C\x21" <>) $ sorted
+        script = op_m <> pubkeyPushes <> op_n <> op_checkmultisig
+
+
+base58check :: HashAlgorithm a => Word8 -> Digest a -> BtcAddr
+base58check v d = BtcAddr . B58.encodeBase58 B58.bitcoinAlphabet $ encode v <> BA.convert d <> checksum
+    where
+        checksum = BS.take 4 . BA.convert . hash256 $ encode v <> BA.convert d
 
 verifyBtcChecksum :: BtcAddr -> Bool
 verifyBtcChecksum addr =
