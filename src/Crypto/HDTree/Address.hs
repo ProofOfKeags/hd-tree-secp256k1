@@ -23,8 +23,8 @@ instance Read EthAddr where
     readsPrec i s = filter (isValidEthAddr . fst) [(EthAddr x, y) | (x, y) <- readsPrec i s]
 
 newtype BtcAddr = BtcAddr { unBtcAddr :: ByteString } deriving (Eq, Show)
--- instance Read BtcAddr where
-    -- readsPrec i s = filter isValidBtcAddr [(BtcAddr x, y) | (x, y) <- readsPrec i s]
+instance Read BtcAddr where
+    readsPrec i s = filter (isValidBtcAddr . fst) [(BtcAddr x, y) | (x, y) <- readsPrec i s]
 
 getEthAddress :: PublicKey -> EthAddr
 getEthAddress = ethChecksum . getLowerEthAddress
