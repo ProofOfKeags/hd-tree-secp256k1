@@ -1,8 +1,10 @@
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Crypto.HDTree.Address where
 
 import Crypto.HDTree.Bip32
 import Crypto.Hash
+import Control.Applicative
 import Data.Bits
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -17,7 +19,12 @@ import Data.Serialize
 import Data.Word
 
 newtype EthAddr = EthAddr { unEthAddr :: ByteString } deriving (Eq, Show)
+instance Read EthAddr where
+    readsPrec i s = filter (isValidEthAddr . fst) [(EthAddr x, y) | (x, y) <- readsPrec i s]
+
 newtype BtcAddr = BtcAddr { unBtcAddr :: ByteString } deriving (Eq, Show)
+-- instance Read BtcAddr where
+    -- readsPrec i s = filter isValidBtcAddr [(BtcAddr x, y) | (x, y) <- readsPrec i s]
 
 getEthAddress :: PublicKey -> EthAddr
 getEthAddress = ethChecksum . getLowerEthAddress
@@ -45,6 +52,16 @@ verifyEthChecksum = ethChecksum >>= (==)
 
 getLowerEthAddress :: PublicKey -> EthAddr
 getLowerEthAddress p = EthAddr . B16.encode . BS.drop 12 . BA.convert . hashWith Keccak_256 $ getXCoord p <> getYCoord p
+
+isValidEthAddr :: EthAddr -> Bool
+isValidEthAddr = is20Chars <&&> isHex <&&> (verifyEthChecksum <||> isLower')
+    where
+        (<&&>) = liftA2 (&&)
+        (<||>) = liftA2 (||)
+        is20Chars = (==20) . BS.length . unEthAddr
+        isHex = (=="") . snd . B16.decode . unEthAddr
+        isLower' = all (isLower <||> isDigit) . B8.unpack . unEthAddr
+
 
 getBtcP2PKHAddress :: NetworkType -> PublicKey -> BtcAddr
 getBtcP2PKHAddress t p = base58check v . hash160 . getCompressed $ p
@@ -94,3 +111,11 @@ verifyBtcChecksum addr =
         decoded = b58decode $ unBtcAddr addr
         payload' = BS.take 21 <$> decoded
         checksum' = BS.drop 21 <$> decoded
+
+isValidBtcAddr :: BtcAddr -> Bool
+isValidBtcAddr = lengthInBounds <&&> isBase58 <&&> verifyBtcChecksum
+    where
+        (<&&>) = liftA2 (&&)
+        lengthInBounds = ((>=25) <&&> (<=34)) . BS.length . unBtcAddr
+        isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
+        isBase58 = all isB58Char . B8.unpack . unBtcAddr
