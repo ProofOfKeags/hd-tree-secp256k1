@@ -20,7 +20,7 @@ import Data.Word
 
 newtype EthAddr = EthAddr { unEthAddr :: ByteString } deriving (Eq, Show)
 instance Read EthAddr where
-    readsPrec i s = filter (isValidEthAddr . fst) [(EthAddr x, y) | (x, y) <- readsPrec i s]
+    readsPrec i s = filter (isValidEthAddr . fst) [(EthAddr (BS.drop 2 x), y) | (x, y) <- readsPrec i s]
 
 newtype BtcAddr = BtcAddr { unBtcAddr :: ByteString } deriving (Eq, Show)
 instance Read BtcAddr where
@@ -58,7 +58,7 @@ isValidEthAddr = is20Chars <&&> isHex <&&> (verifyEthChecksum <||> isLower')
     where
         (<&&>) = liftA2 (&&)
         (<||>) = liftA2 (||)
-        is20Chars = (==20) . BS.length . unEthAddr
+        is20Chars = (==40) . BS.length . unEthAddr
         isHex = (=="") . snd . B16.decode . unEthAddr
         isLower' = all (isLower <||> isDigit) . B8.unpack . unEthAddr
 
