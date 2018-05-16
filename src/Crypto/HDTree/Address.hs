@@ -113,9 +113,10 @@ verifyBtcChecksum addr =
         checksum' = BS.drop 21 <$> decoded
 
 isValidBtcAddr :: BtcAddr -> Bool
-isValidBtcAddr = lengthInBounds <&&> isBase58 <&&> verifyBtcChecksum
+isValidBtcAddr = lengthInBounds <&&> isBase58 <&&> verifyBtcChecksum <&&> validVersionByte
     where
         (<&&>) = liftA2 (&&)
         lengthInBounds = ((>=25) <&&> (<=34)) . BS.length . unBtcAddr
         isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
         isBase58 = all isB58Char . B8.unpack . unBtcAddr
+        validVersionByte = flip elem ("132mn"::String) . head . B8.unpack . unBtcAddr
