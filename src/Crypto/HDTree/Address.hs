@@ -18,11 +18,15 @@ import Data.Monoid
 import Data.Serialize
 import Data.Word
 
-newtype EthAddr = EthAddr { unEthAddr :: ByteString } deriving (Eq, Show)
+newtype EthAddr = EthAddr { unEthAddr :: ByteString } deriving (Eq)
+instance Show EthAddr where
+    show e = "0x" <> (B8.unpack . unEthAddr $ e)
 instance Read EthAddr where
     readsPrec i s = filter (isValidEthAddr . fst) [(EthAddr (BS.drop 2 x), y) | (x, y) <- readsPrec i s]
 
-newtype BtcAddr = BtcAddr { unBtcAddr :: ByteString } deriving (Eq, Show)
+newtype BtcAddr = BtcAddr { unBtcAddr :: ByteString } deriving (Eq)
+instance Show BtcAddr where
+    show = B8.unpack . unBtcAddr
 instance Read BtcAddr where
     readsPrec i s = filter (isValidBtcAddr . fst) [(BtcAddr x, y) | (x, y) <- readsPrec i s]
 
