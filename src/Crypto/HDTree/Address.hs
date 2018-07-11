@@ -111,7 +111,8 @@ verifyBtcChecksum addr =
         (_, Nothing) -> False
         (Just payload, Just checksum) -> BS.take 4 (BA.convert . hash256 $ payload) == checksum
     where
-        b58decode = B58.decodeBase58 B58.bitcoinAlphabet
+        b58decode = fmap leftpad . B58.decodeBase58 B58.bitcoinAlphabet
+        leftpad bs = BS.replicate (25 - BS.length bs) 0 <> bs
         decoded = b58decode $ unBtcAddr addr
         payload' = BS.take 21 <$> decoded
         checksum' = BS.drop 21 <$> decoded
