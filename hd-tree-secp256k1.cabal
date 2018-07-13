@@ -1,8 +1,8 @@
--- This file has been generated from package.yaml by hpack version 0.20.0.
+-- This file has been generated from package.yaml by hpack version 0.28.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d8c8c5280631a9894cb636dc05d4892177782ecc1fe652e2ced657f911fc339a
+-- hash: 488c30541ee91eaf583d86f06afa9b4757ef722e2189e5f628e3add2d248d619
 
 name:           hd-tree-secp256k1
 version:        0.0.0
@@ -44,11 +44,11 @@ library
     , trifecta
   exposed-modules:
       Crypto.HDTree.Bip32
+      Crypto.HDTree.Bip32.ExtendedKeys
       Crypto.HDTree.Address
   other-modules:
       Crypto.HDTree.Bip32.Constants
       Crypto.HDTree.Bip32.DerivationPath
-      Crypto.HDTree.Bip32.ExtendedKeys
       Paths_hd_tree_secp256k1
   default-language: Haskell2010
 

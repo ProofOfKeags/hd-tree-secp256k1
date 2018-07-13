@@ -30,6 +30,7 @@ library:
     - src
   exposed-modules:
     - Crypto.HDTree.Bip32
+    - Crypto.HDTree.Bip32.ExtendedKeys
     - Crypto.HDTree.Address
   ghc-options:
     - -Wall
