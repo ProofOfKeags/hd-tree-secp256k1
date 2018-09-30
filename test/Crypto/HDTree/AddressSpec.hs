@@ -5,6 +5,10 @@ import Test.Hspec
 import Crypto.HDTree.Address
 import Data.Monoid ((<>))
 import Data.ByteString.Char8 (unpack)
+import Crypto.Secp256k1
+import Data.Maybe
+import Data.Either.Combinators
+import qualified Data.ByteArray.Encoding as BA
 
 spec :: Spec
 spec = do
@@ -12,6 +16,12 @@ spec = do
         it (unpack $ unEthAddr addr <> " should be checksummed") $ verifyEthChecksum addr `shouldBe` True)
     describe "btcChecksum cases" $ foldr (*>) (pure ()) $ flip fmap btcChecksummedAddrs (\addr ->
         it (unpack $ unBtcAddr addr <> " should be checksummed") $ verifyBtcChecksum addr `shouldBe` True)
+    describe "btcChecksum cases" $ foldr (*>) (pure ()) $ flip fmap ltcChecksummedAddrs (\addr ->
+        it (unpack $ unLtcAddr addr <> " should be checksummed") $ verifyLtcChecksum addr `shouldBe` True)
+    
+
+
+
 
 ethChecksummedAddrs :: [EthAddr]
 ethChecksummedAddrs =
@@ -35,4 +45,9 @@ btcChecksummedAddrs =
     , BtcAddr "15oLkM3QTji6wc4YXmBZAcy6LKww4woZVd"
     , BtcAddr "19JuQ7BnvDsQmqXxUa45THciHJErsmKNCy"
     , BtcAddr "1B3ySSjxBfv4U2THAxUwN9b3XXB99zZKPN"
+    ]
+
+ltcChecksummedAddrs :: [LtcAddr]
+ltcChecksummedAddrs =
+    [ LtcAddr "MV5rN5EcX1imDS2gEh5jPJXeiW5QN8YrK3"
     ]

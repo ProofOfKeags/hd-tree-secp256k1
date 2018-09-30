@@ -30,6 +30,12 @@ instance Show BtcAddr where
 instance Read BtcAddr where
     readsPrec i s = filter (isValidBtcAddr . fst) [(BtcAddr x, y) | (x, y) <- readsPrec i s]
 
+newtype LtcAddr = LtcAddr { unLtcAddr :: ByteString } deriving (Eq)
+instance Show LtcAddr where
+    show = B8.unpack . unLtcAddr
+instance Read LtcAddr where
+    readsPrec i s = filter (isValidLtcAddr . fst) [(LtcAddr x, y) | (x, y) <- readsPrec i s]
+
 getEthAddress :: PublicKey -> EthAddr
 getEthAddress = ethChecksum . getLowerEthAddress
 
@@ -68,9 +74,14 @@ isValidEthAddr = is20Chars <&&> isHex <&&> (verifyEthChecksum <||> isLower')
 
 
 getBtcP2PKHAddress :: NetworkType -> PublicKey -> BtcAddr
-getBtcP2PKHAddress t p = base58check v . hash160 . getCompressed $ p
+getBtcP2PKHAddress t = BtcAddr . base58check v . hash160 . getCompressed
     where
         v = if t == MainNet then 0x00 else 0x6F
+
+getLtcP2PKHAddress :: NetworkType -> PublicKey -> LtcAddr
+getLtcP2PKHAddress t = LtcAddr . base58check v . hash160 . getCompressed
+    where
+        v = if t == MainNet then 0x30 else 0x6F
 
 data MultiSigErr = TooManyKeys
                  | MExceedsN
@@ -80,10 +91,14 @@ data NetworkType = MainNet
                  | TestNet
     deriving (Eq)
 
--- will only take up to 15 pub keys, 
+-- will only take up to 15 pub keys,
 getBtcMultiSigAddressMain :: NetworkType -> [PublicKey] -> Word8 -> Either MultiSigErr BtcAddr
-getBtcMultiSigAddressMain t ps m = base58check v . hash160 <$> getBtcMultiSigScript ps m
+getBtcMultiSigAddressMain t ps m = BtcAddr . base58check v . hash160 <$> getBtcMultiSigScript ps m
     where v = if t == MainNet then 0x05 else 0xC4
+
+getLtcMultiSigAddressMain :: NetworkType -> [PublicKey] -> Word8 -> Either MultiSigErr LtcAddr
+getLtcMultiSigAddressMain t ps m = LtcAddr . base58check v . hash160 <$> getBtcMultiSigScript ps m
+    where v = if t == MainNet then 0x32 else 0xC4
 
 getBtcMultiSigScript :: [PublicKey] -> Word8 -> Either MultiSigErr ByteString
 getBtcMultiSigScript ps m
@@ -99,8 +114,8 @@ getBtcMultiSigScript ps m
         script = op_m <> pubkeyPushes <> op_n <> op_checkmultisig
 
 
-base58check :: HashAlgorithm a => Word8 -> Digest a -> BtcAddr
-base58check v d = BtcAddr . B58.encodeBase58 B58.bitcoinAlphabet $ encode v <> BA.convert d <> checksum
+base58check :: HashAlgorithm a => Word8 -> Digest a -> ByteString
+base58check v d = B58.encodeBase58 B58.bitcoinAlphabet $ encode v <> BA.convert d <> checksum
     where
         checksum = BS.take 4 . BA.convert . hash256 $ encode v <> BA.convert d
 
@@ -125,3 +140,25 @@ isValidBtcAddr = lengthInBounds <&&> isBase58 <&&> verifyBtcChecksum <&&> validV
         isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
         isBase58 = all isB58Char . B8.unpack . unBtcAddr
         validVersionByte = flip elem ("132mn"::String) . head . B8.unpack . unBtcAddr
+
+verifyLtcChecksum :: LtcAddr -> Bool
+verifyLtcChecksum addr =
+    case (payload', checksum') of
+        (Nothing, _) -> False
+        (_, Nothing) -> False
+        (Just payload, Just checksum) -> BS.take 4 (BA.convert . hash256 $ payload) == checksum
+    where
+        b58decode = fmap leftpad . B58.decodeBase58 B58.bitcoinAlphabet
+        leftpad bs = BS.replicate (25 - BS.length bs) 0 <> bs
+        decoded = b58decode $ unLtcAddr addr
+        payload' = BS.take 21 <$> decoded
+        checksum' = BS.drop 21 <$> decoded
+
+isValidLtcAddr :: LtcAddr -> Bool
+isValidLtcAddr = lengthInBounds <&&> isBase58 <&&> verifyLtcChecksum <&&> validVersionByte
+    where
+        (<&&>) = liftA2 (&&)
+        lengthInBounds = ((>=26) <&&> (<=35)) . BS.length . unLtcAddr
+        isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
+        isBase58 = all isB58Char . B8.unpack . unLtcAddr
+        validVersionByte = flip elem ("132mn"::String) . head . B8.unpack . unLtcAddr

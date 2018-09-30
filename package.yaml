@@ -24,6 +24,7 @@ dependencies:
   - memory
   - secp256k1
   - trifecta
+  - either
 
 library:
   source-dirs:
