@@ -161,4 +161,4 @@ isValidLtcAddr = lengthInBounds <&&> isBase58 <&&> verifyLtcChecksum <&&> validV
         lengthInBounds = ((>=26) <&&> (<=35)) . BS.length . unLtcAddr
         isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
         isBase58 = all isB58Char . B8.unpack . unLtcAddr
-        validVersionByte = flip elem ("132mn"::String) . head . B8.unpack . unLtcAddr
+        validVersionByte = flip elem ("LM2mn"::String) . head . B8.unpack . unLtcAddr
