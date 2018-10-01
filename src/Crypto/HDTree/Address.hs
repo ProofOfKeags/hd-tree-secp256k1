@@ -162,3 +162,14 @@ isValidLtcAddr = lengthInBounds <&&> isBase58 <&&> verifyLtcChecksum <&&> validV
         isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
         isBase58 = all isB58Char . B8.unpack . unLtcAddr
         validVersionByte = flip elem ("LM2mn"::String) . head . B8.unpack . unLtcAddr
+
+ltcConvertTo3Address :: LtcAddr -> Maybe LtcAddr
+ltcConvertTo3Address addr = do
+    bs <- B58.decodeBase58 B58.bitcoinAlphabet $ unLtcAddr addr
+    scriptHash <- if BS.head bs == 0x32
+        then return . BS.take 20 . BS.drop 1 $ bs
+        else Nothing
+    let payload = encode (0x05 :: Word8) <> scriptHash
+    let checksum = BS.take 4 . BA.convert . hash256 $ payload
+    return $ LtcAddr . B58.encodeBase58 B58.bitcoinAlphabet $ payload <> checksum
+
