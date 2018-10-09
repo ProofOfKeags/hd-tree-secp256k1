@@ -201,14 +201,3 @@ ltcConvertTo3Address addr = do
     let payload = encode (0x05 :: Word8) <> scriptHash
     let checksum = BS.take 4 . BA.convert . hash256 $ payload
     return $ LtcAddr . B58.encodeBase58 B58.bitcoinAlphabet $ payload <> checksum
-    
-dogeConvertTo3Address :: DogeAddr -> Maybe DogeAddr
-dogeConvertTo3Address addr = do
-    bs <- B58.decodeBase58 B58.bitcoinAlphabet $ unDogeAddr addr
-    scriptHash <- if BS.head bs == 0x16
-        then return . BS.take 20 . BS.drop 1 $ bs
-        else Nothing
-    let payload = encode (0x05 :: Word8) <> scriptHash
-    let checksum = BS.take 4 . BA.convert . hash256 $ payload
-    return $ DogeAddr . B58.encodeBase58 B58.bitcoinAlphabet $ payload <> checksum
-
