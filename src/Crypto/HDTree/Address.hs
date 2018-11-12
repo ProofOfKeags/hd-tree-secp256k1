@@ -95,7 +95,7 @@ data MultiSigErr = TooManyKeys
 
 data NetworkType = MainNet
                  | TestNet
-    deriving (Eq)
+    deriving (Eq, Show)
 
 -- will only take up to 15 pub keys,
 getBtcMultiSigAddressMain :: NetworkType -> [PublicKey] -> Word8 -> Either MultiSigErr BtcAddr
