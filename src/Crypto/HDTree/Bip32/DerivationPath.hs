@@ -10,7 +10,7 @@ import Control.Applicative ((<|>))
 import Data.Word (Word32)
 import Text.Trifecta
 
-newtype Index = Index { getIndex :: Word32 }
+newtype Index = Index { getIndex :: Word32 } deriving (Eq)
 instance Show Index where
     show (Index i) =
         if i >= 0x80000000
@@ -23,7 +23,7 @@ increment (Index i)
     | i >= 0x80000000 && i + 1 == 0 = Index 0x80000000
     | otherwise = Index $ i + 1
 
-newtype Path = Path { privPath :: [Index] }
+newtype Path = Path { privPath :: [Index] } deriving (Eq)
 instance Show Path where
     show = ('m':) . ((('/':) . show) =<<) . privPath
 
