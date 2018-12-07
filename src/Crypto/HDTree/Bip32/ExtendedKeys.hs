@@ -40,7 +40,7 @@ data Extended a = Extended
     , _extChainCode :: ChainCode
     , _extKey :: a
     }
-    deriving (Show)
+    deriving (Eq, Show)
 makeLenses ''Extended
 
 type XPub = Extended PublicKey
@@ -49,10 +49,10 @@ type XPriv = Extended PrivateKey
 instance Serialize ChainCode where
     put = putByteString . ser256 . getChainCode
     get = do
-        n <- Word256 
-            <$> getWord64be 
-            <*> getWord64be 
-            <*> getWord64be 
+        n <- Word256
+            <$> getWord64be
+            <*> getWord64be
+            <*> getWord64be
             <*> getWord64be
         return $ ChainCode n
 
@@ -87,7 +87,7 @@ serP = SECP.exportPubKey True . pubKey
 -- parses 256 bit bytestring into a 256 bit unsigned integer
 parse256 :: ByteString -> Maybe Word256
 parse256 bs =
-    let g = (,) 
+    let g = (,)
             <$> (Word256
                 <$> getWord64be
                 <*> getWord64be

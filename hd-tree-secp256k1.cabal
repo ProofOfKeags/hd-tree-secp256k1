@@ -1,8 +1,10 @@
--- This file has been generated from package.yaml by hpack version 0.28.2.
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c14a20da5b5d0bf9a3ecf426cc91d7731368a49a9007f91370dd15ee2581e344
+-- hash: 027784c043d865af195fb871fc45a51e2a627f7d18aefeb69f7efeddba6f865f
 
 name:           hd-tree-secp256k1
 version:        0.0.0
@@ -20,7 +22,6 @@ copyright:      Keagan (CaptJakk) McClelland
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
-cabal-version:  >= 1.10
 
 source-repository head
   type: git
