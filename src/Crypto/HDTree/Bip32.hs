@@ -52,10 +52,10 @@ import           Crypto.MAC.HMAC
 import qualified Data.ByteArray                as BA
 import           Data.ByteString                ( ByteString )
 import qualified Data.ByteString               as BS
-import qualified Data.ByteString.Base58        as B58
 import           Data.Either                    ( fromRight )
-import           Data.Monoid
+import qualified Network.Haskoin.Address.Base58 as B58
 import           Data.Serialize
+import           Data.Text.Encoding
 import           Data.Word                      ( Word32 )
 
 import           Crypto.HDTree.Bip32.DerivationPath
@@ -108,13 +108,13 @@ ckdDiagHardened sPar cPar = fmap (_1 %~ derivePublicKey) . ckdPriv sPar cPar
 
 toXAddress :: (MagicMain s, Serialize s) => Extended s -> ByteString
 toXAddress xpub =
-    let b58      = B58.encodeBase58 B58.bitcoinAlphabet
+    let b58      = encodeUtf8 . B58.encodeBase58
         checksum = BS.take 4 . BA.convert . hash256 $ encode xpub
     in  b58 $ encode xpub <> checksum
 
 fromXAddress :: (MagicMain s, Serialize s) => ByteString -> Maybe (Extended s)
 fromXAddress addr =
-    let b58 = B58.decodeBase58 B58.bitcoinAlphabet
+    let b58 = B58.decodeBase58 . decodeUtf8
     in  b58 addr >>= \x -> case decode . BS.take 78 $ x of
             Left  _ -> Nothing
             Right a -> Just a

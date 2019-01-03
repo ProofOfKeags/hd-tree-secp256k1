@@ -10,12 +10,13 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Base16 as B16
-import qualified Data.ByteString.Base58 as B58
 import qualified Data.ByteArray as BA
 import Data.Char
 import Data.List
-import Data.Monoid
+import qualified Network.Haskoin.Address.Base58 as B58
+import Data.Maybe
 import Data.Serialize
+import Data.Text.Encoding
 import Data.Word
 
 newtype EthAddr = EthAddr { unEthAddr :: ByteString } deriving (Eq)
@@ -121,7 +122,7 @@ getBtcMultiSigScript ps m
 
 
 base58check :: HashAlgorithm a => Word8 -> Digest a -> ByteString
-base58check v d = B58.encodeBase58 B58.bitcoinAlphabet $ encode v <> BA.convert d <> checksum
+base58check v d = encodeUtf8 . B58.encodeBase58 $ encode v <> BA.convert d <> checksum
     where
         checksum = BS.take 4 . BA.convert . hash256 $ encode v <> BA.convert d
 
@@ -132,7 +133,7 @@ verifyBtcChecksum addr =
         (_, Nothing) -> False
         (Just payload, Just checksum) -> BS.take 4 (BA.convert . hash256 $ payload) == checksum
     where
-        b58decode = fmap leftpad . B58.decodeBase58 B58.bitcoinAlphabet
+        b58decode = fmap leftpad . B58.decodeBase58 . decodeUtf8
         leftpad bs = BS.replicate (25 - BS.length bs) 0 <> bs
         decoded = b58decode $ unBtcAddr addr
         payload' = BS.take 21 <$> decoded
@@ -145,7 +146,7 @@ verifyLtcChecksum addr =
         (_, Nothing) -> False
         (Just payload, Just checksum) -> BS.take 4 (BA.convert . hash256 $ payload) == checksum
     where
-        b58decode = fmap leftpad . B58.decodeBase58 B58.bitcoinAlphabet
+        b58decode = fmap leftpad . B58.decodeBase58 . decodeUtf8
         leftpad bs = BS.replicate (25 - BS.length bs) 0 <> bs
         decoded = b58decode $ unLtcAddr addr
         payload' = BS.take 21 <$> decoded
@@ -158,7 +159,7 @@ verifyDogeChecksum addr =
         (_, Nothing) -> False
         (Just payload, Just checksum) -> BS.take 4 (BA.convert . hash256 $ payload) == checksum
     where
-        b58decode = fmap leftpad . B58.decodeBase58 B58.bitcoinAlphabet
+        b58decode = fmap leftpad . B58.decodeBase58 . decodeUtf8
         leftpad bs = BS.replicate (25 - BS.length bs) 0 <> bs
         decoded = b58decode $ unDogeAddr addr
         payload' = BS.take 21 <$> decoded
@@ -169,18 +170,20 @@ isValidBtcAddr = lengthInBounds <&&> isBase58 <&&> verifyBtcChecksum <&&> validV
     where
         (<&&>) = liftA2 (&&)
         lengthInBounds = ((>=26) <&&> (<=35)) . BS.length . unBtcAddr
-        isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
-        isBase58 = all isB58Char . B8.unpack . unBtcAddr
+        isBase58 = isJust . B58.decodeBase58 . decodeUtf8 . unBtcAddr
+        -- isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
+        -- isBase58 = all isB58Char . B8.unpack . unBtcAddr
         validVersionByte = flip elem ("132mn"::String) . head . B8.unpack . unBtcAddr
-        
+
 
 isValidLtcAddr :: LtcAddr -> Bool
 isValidLtcAddr = lengthInBounds <&&> isBase58 <&&> verifyLtcChecksum <&&> validVersionByte
     where
         (<&&>) = liftA2 (&&)
         lengthInBounds = ((>=26) <&&> (<=35)) . BS.length . unLtcAddr
-        isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
-        isBase58 = all isB58Char . B8.unpack . unLtcAddr
+        isBase58 = isJust . B58.decodeBase58 . decodeUtf8 . unLtcAddr
+        -- isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
+        -- isBase58 = all isB58Char . B8.unpack . unLtcAddr
         validVersionByte = flip elem ("LM2mn"::String) . head . B8.unpack . unLtcAddr
 
 isValidDogeAddr :: DogeAddr -> Bool
@@ -188,16 +191,17 @@ isValidDogeAddr = lengthInBounds <&&> isBase58 <&&> verifyDogeChecksum <&&> vali
     where
         (<&&>) = liftA2 (&&)
         lengthInBounds = ((>=26) <&&> (<=35)) . BS.length . unDogeAddr
-        isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
-        isBase58 = all isB58Char . B8.unpack . unDogeAddr
+        isBase58 = isJust . B58.decodeBase58 . decodeUtf8 . unDogeAddr
+        -- isB58Char = flip elem . B8.unpack $ B58.unAlphabet B58.bitcoinAlphabet
+        -- isBase58 = all isB58Char . B8.unpack . unDogeAddr
         validVersionByte = flip elem ("D9A2mn"::String) . head . B8.unpack . unDogeAddr
 
 ltcConvertTo3Address :: LtcAddr -> Maybe LtcAddr
 ltcConvertTo3Address addr = do
-    bs <- B58.decodeBase58 B58.bitcoinAlphabet $ unLtcAddr addr
+    bs <- B58.decodeBase58 . decodeUtf8 $ unLtcAddr addr
     scriptHash <- if BS.head bs == 0x32
         then return . BS.take 20 . BS.drop 1 $ bs
         else Nothing
     let payload = encode (0x05 :: Word8) <> scriptHash
     let checksum = BS.take 4 . BA.convert . hash256 $ payload
-    return $ LtcAddr . B58.encodeBase58 B58.bitcoinAlphabet $ payload <> checksum
+    return $ LtcAddr . encodeUtf8 . B58.encodeBase58 $ payload <> checksum

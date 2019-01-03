@@ -15,16 +15,17 @@ maintainer: "keagan.mcclelland@gmail.com"
 dependencies:
   - base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
   - base16-bytestring
-  - base58-bytestring
   - basement
   - bytestring
   - cereal
   - cryptonite
+  - either
+  - haskoin-core
   - lens
   - memory
-  - secp256k1
+  - secp256k1-haskell
+  - text
   - trifecta
-  - either
 
 library:
   source-dirs:

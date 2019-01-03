@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 027784c043d865af195fb871fc45a51e2a627f7d18aefeb69f7efeddba6f865f
+-- hash: ca90ecd552dd257680d5cfcccdbc13ce8048830008616904da6f27b4c2550a87
 
 name:           hd-tree-secp256k1
 version:        0.0.0
@@ -42,15 +42,16 @@ library
   build-depends:
       base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
     , base16-bytestring
-    , base58-bytestring
     , basement
     , bytestring
     , cereal
     , cryptonite
     , either
+    , haskoin-core
     , lens
     , memory
-    , secp256k1
+    , secp256k1-haskell
+    , text
     , trifecta
   default-language: Haskell2010
 
@@ -74,16 +75,17 @@ test-suite spec
       QuickCheck
     , base >=4.8.2.0 && <4.9 || >=4.9.1.0 && <5
     , base16-bytestring
-    , base58-bytestring
     , basement
     , bytestring
     , cereal
     , cryptonite
     , either
+    , haskoin-core
     , hspec
     , lens
     , memory
     , safe
-    , secp256k1
+    , secp256k1-haskell
+    , text
     , trifecta
   default-language: Haskell2010
